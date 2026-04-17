@@ -159,7 +159,7 @@ function M.library_manager()
 
 				-- Insert each library with display name, hidden tag, and actual lib_name
 				table.insert(library_names, {
-					display_name = display_name,
+					display = display_name,
 					hidden_tag = tag,
 					lib_name = lib.name,
 				})
@@ -167,9 +167,31 @@ function M.library_manager()
 		end
 
 		require("Arduino-Nvim.picker").open({
+			title = "Available Arduino Libraries",
 			items = library_names,
-			outdated_libs,
-			update_callback = update_library_picker,
+			on_select = function(item)
+				local lib_name = item.lib_name
+				local cmd = string.format('arduino-cli lib install "%s" > /dev/null 2>&1', lib_name)
+				vim.fn.jobstart(cmd, {
+					on_exit = function(_, exit_code)
+						if exit_code == 0 then
+							if item.hidden_tag == "[outdated]" then
+								vim.notify(string.format("Library '%s' updated successfully.", lib_name), vim.log.levels.INFO)
+							else
+								vim.notify(
+									string.format("Library '%s' installed successfully.", lib_name),
+									vim.log.levels.INFO
+								)
+							end
+							if type(update_library_picker) == "function" then
+								update_library_picker()
+							end
+						else
+							vim.notify(string.format("Failed to install library '%s'.", lib_name), vim.log.levels.ERROR)
+						end
+					end,
+				})
+			end,
 		})
 	else
 		vim.notify("No libraries found.", vim.log.levels.WARN)

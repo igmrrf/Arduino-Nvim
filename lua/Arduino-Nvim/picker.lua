@@ -37,7 +37,6 @@ local function get_display(item)
 	return item.display or item.text or item.label or item.name or tostring(item)
 end
 
---- Snacks.nvim implementation
 backends.snacks = function(opts)
 	local ok, snacks = pcall(require, "snacks")
 	if not ok then
@@ -47,16 +46,13 @@ backends.snacks = function(opts)
 	-- Prepare items for snacks: ensure 'text' is present for searching
 	local items = {}
 	for _, item in ipairs(opts.items) do
-		local snack_item = {}
+		local snack_item = { item = item }
 		if type(item) == "table" then
-			snack_item = vim.tbl_extend("force", {}, item)
-			snack_item.text = snack_item.text or get_display(item)
+			snack_item.text = item.text or get_display(item)
 		else
-			snack_item = { text = tostring(item), item = item }
+			snack_item.text = tostring(item)
 		end
-		-- Snacks wraps the item in its own table, but we can store original in .item if we want
-		-- but snacks already puts the original item in .item if we pass a table.
-		-- If we pass a table, the table itself IS the item.
+
 		table.insert(items, snack_item)
 	end
 
@@ -65,17 +61,18 @@ backends.snacks = function(opts)
 		items = items,
 		layout = "select",
 		format = function(item)
+			-- item.item is now guaranteed to exist
 			return { { get_display(item.item) } }
 		end,
 		confirm = function(picker, item)
 			picker:close()
+			-- item.item is now guaranteed to exist
 			if item and opts.on_select then
 				opts.on_select(item.item)
 			end
 		end,
 	})
 end
-
 --- Mini.pick implementation
 backends.mini = function(opts)
 	local ok, mini_pick = pcall(require, "mini.pick")

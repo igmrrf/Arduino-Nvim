@@ -73,30 +73,44 @@ backends.snacks = function(opts)
 		end,
 	})
 end
---- Mini.pick implementation
 backends.mini = function(opts)
 	local ok, mini_pick = pcall(require, "mini.pick")
 	if not ok then
 		return vim.notify("mini.pick not installed", vim.log.levels.ERROR)
 	end
 
+	-- 1. Pre-process items so mini.pick can natively search and display them
+	local items = {}
+	for _, item in ipairs(opts.items) do
+		local pick_item = { item = item } -- Preserve original data
+
+		if type(item) == "table" then
+			-- Ensure there is a text field for mini.pick to display/match
+			pick_item.text = item.text or get_display(item)
+		else
+			pick_item.text = tostring(item)
+		end
+
+		table.insert(items, pick_item)
+	end
+
+	-- 2. Start the picker
 	mini_pick.start({
 		source = {
 			name = opts.title,
-			items = opts.items,
-			show = function(item)
-				return get_display(item)
-			end,
-			choose = function(item)
-				if opts.on_select then
-					opts.on_select(item)
+			items = items,
+			-- DO NOT override `show`.
+			-- mini.pick will automatically display and fuzzy-match against the `text` field we just created.
+			choose = function(selected)
+				if selected and opts.on_select then
+					-- Pass the preserved original item back to the callback
+					opts.on_select(selected.item)
 				end
 			end,
 		},
 	})
 end
 
---- Telescope implementation
 backends.telescope = function(opts)
 	local ok, telescope = pcall(require, "telescope.pickers")
 	if not ok then
@@ -115,9 +129,18 @@ backends.telescope = function(opts)
 				results = opts.items,
 				entry_maker = function(entry)
 					local display = get_display(entry)
-					local ordinal = entry.ordinal or display
+					local ordinal
+
+					-- FIX: Safely determine the ordinal based on data type
+					if type(entry) == "table" then
+						-- Fallback chain: Explicit ordinal -> explicit text -> rendered display
+						ordinal = entry.ordinal or entry.text or display
+					else
+						ordinal = display
+					end
+
 					return {
-						value = entry,
+						value = entry, -- Preserves the original item perfectly
 						display = display,
 						ordinal = ordinal,
 					}
@@ -130,6 +153,7 @@ backends.telescope = function(opts)
 					if selection then
 						actions.close(prompt_bufnr)
 						if opts.on_select then
+							-- selection.value correctly passes the original item back
 							opts.on_select(selection.value)
 						end
 					end

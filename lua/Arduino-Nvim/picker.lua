@@ -44,16 +44,33 @@ backends.snacks = function(opts)
 		return vim.notify("snacks.nvim not installed", vim.log.levels.ERROR)
 	end
 
+	-- Prepare items for snacks: ensure 'text' is present for searching
+	local items = {}
+	for _, item in ipairs(opts.items) do
+		local snack_item = {}
+		if type(item) == "table" then
+			snack_item = vim.tbl_extend("force", {}, item)
+			snack_item.text = snack_item.text or get_display(item)
+		else
+			snack_item = { text = tostring(item), item = item }
+		end
+		-- Snacks wraps the item in its own table, but we can store original in .item if we want
+		-- but snacks already puts the original item in .item if we pass a table.
+		-- If we pass a table, the table itself IS the item.
+		table.insert(items, snack_item)
+	end
+
 	snacks.picker({
 		title = opts.title,
-		items = opts.items,
+		items = items,
+		layout = "select",
 		format = function(item)
-			return { { get_display(item) } }
+			return { { get_display(item.item) } }
 		end,
 		confirm = function(picker, item)
 			picker:close()
 			if item and opts.on_select then
-				opts.on_select(item)
+				opts.on_select(item.item)
 			end
 		end,
 	})
